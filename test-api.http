@@ -1,0 +1,205 @@
+@baseUrl = http://localhost:8000/api
+
+### 1. Login - ເອົາ token
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "Password123!"
+}
+
+### 0.1 Admin ສ້າງ organizer2@example.com
+@adminToken = {{loginAdmin.response.body.$.access_token}}
+POST {{baseUrl}}/users
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Organizer 2",
+  "email": "organizer2@example.com",
+  "password": "Password123!",
+  "password_confirmation": "Password123!",
+  "role": "organizer",
+  "status": "active"
+}
+
+### 2. ເບິ່ງຂໍ້ມູນ User ຂອງຕົນເອງ
+@token = {{login.response.body.$.access_token}}
+GET {{baseUrl}}/user
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### 3. Logout
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{token}}
+Accept: application/json
+
+
+### A1. Login Admin - ເອົາ token admin
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "Password123!"
+}
+
+### A2. Login Organizer - ເອົາ token organizer
+# @name loginOrg
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "organizer@example.com",
+  "password": "Password123!"
+}
+
+### B1. GET /api/users ດ້ວຍ Token Admin -> ຕ້ອງໄດ້ 200 OK
+@adminToken = {{loginAdmin.response.body.$.access_token}}
+GET {{baseUrl}}/users
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+
+### B2. POST /api/users ສ້າງ Organizer ໃໝ່ ດ້ວຍ Token Admin -> ຕ້ອງໄດ້ 201 Created
+POST {{baseUrl}}/users
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "New Organizer",
+  "email": "neworg{{$timestamp}}@example.com",
+  "password": "Password123!",
+  "password_confirmation": "Password123!",
+  "role": "organizer"
+}
+
+### C. GET /api/users ດ້ວຍ Token Organizer ມາເຈາະ -> ຕ້ອງໄດ້ 403 Forbidden (ນີ້ຄືທີ່ເຈົ້າຕ້ອງການ)
+@orgToken = {{loginOrg.response.body.$.access_token}}
+GET {{baseUrl}}/users
+Authorization: Bearer {{orgToken}}
+Accept: application/json
+
+### D. POST /api/users ດ້ວຍ Token Organizer -> ກໍ່ຕ້ອງໄດ້ 403 ເຊັ່ນກັນ
+POST {{baseUrl}}/users
+Authorization: Bearer {{orgToken}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Hacker",
+  "email": "hack@test.com",
+  "password": "Password123!",
+  "password_confirmation": "Password123!",
+  "role": "admin"
+}
+
+### M1. Login Organizer 1
+# @name loginOrg1
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "organizer@example.com",
+  "password": "Password123!"
+}
+
+### M2. Login Organizer 2
+# @name loginOrg2
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "organizer2@example.com",
+  "password": "Password123!"
+}
+
+### M3. Organizer1 ສ້າງ Meeting -> 201
+# @name createMeeting
+@tokenOrg1 = {{loginOrg1.response.body.$.access_token}}
+POST {{baseUrl}}/meetings
+Authorization: Bearer {{tokenOrg1}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "meeting_code": "MEET-{{$timestamp}}",
+  "title": "Meeting ຂອງ Org1 {{$timestamp}}",
+  "type": "meeting",
+  "date": "2026-08-22",
+  "location": "Room A",
+  "start_time": "2026-08-22 10:00:00",
+  "end_time": "2026-08-22 12:00:00",
+  "description": "Test ownership",
+  "status": "published"
+}
+
+### M4. Organizer1 ດຶງລາຍຊື່ -> 200 ເຫັນສະເພາະຂອງໂຕເອງ
+GET {{baseUrl}}/meetings
+Authorization: Bearer {{tokenOrg1}}
+Accept: application/json
+
+### M5. Organizer1 ເບິ່ງ Meeting ໂຕເອງ -> 200
+@meetingId = {{createMeeting.response.body.$.data.id}}
+GET {{baseUrl}}/meetings/{{meetingId}}
+Authorization: Bearer {{tokenOrg1}}
+Accept: application/json
+
+### M6. Organizer2 ເຈາະເບິ່ງ Meeting ຂອງ Org1 -> ຕ້ອງໄດ້ 403
+@tokenOrg2 = {{loginOrg2.response.body.$.access_token}}
+GET {{baseUrl}}/meetings/{{meetingId}}
+Authorization: Bearer {{tokenOrg2}}
+Accept: application/json
+
+
+
+
+### QR1. ສ້າງ QR ໃຫ້ Meeting ຂອງຕົວເອງ -> 201
+# @name qr1
+@meetingId = 1
+POST {{baseUrl}}/meetings/{{meetingId}}/qr-codes
+Authorization: Bearer {{tokenOrg1}}
+Accept: application/json
+
+### ເອົາ id ຈາກຂໍ້ມຸນ
+@qrCodeId = {{qr1.response.body.$.data.id}}
+
+### QR2. Download ດ້ວຍ Owner -> ໄດ້ PNG
+GET {{baseUrl}}/qr-codes/{{qrCodeId}}/download
+Authorization: Bearer {{tokenOrg1}}
+Accept: image/png
+
+### QR3. Download ດ້ວຍ Org2 ຄົນອື່ນ -> ຕ້ອງ 403
+GET {{baseUrl}}/qr-codes/{{qrCodeId}}/download
+Authorization: Bearer {{tokenOrg2}}
+Accept: application/json
+
+
+@token = MG4Ul75cqpcR65WtnztrznmJYMWv4CM3eyR3Ys2f
+
+### PUBLIC 1 GET
+GET http://localhost:8000/api/public/checkin/{{token}}/
+Accept: application/json
+
+### PUBLIC 2 POST Register
+POST http://localhost:8000/api/public/checkin/{{token}}/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "Sombath",
+  "lastname": "Phommasack",
+  "phone": "02012345678",
+  "email": "sombath@test.la",
+  "organization": "Org1",
+  "position": "Staff"
+}
